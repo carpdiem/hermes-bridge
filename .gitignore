@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Local/private config: keep in separate repo
+.hermes-bridge/
+config.yaml
+*.local.yaml
+
+# Secrets / credentials
+.env
+*.env
+*token*
+*oauth*
+*auth_context*
+*.secret
+credentials*.json
+secrets*.json
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/

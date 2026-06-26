@@ -1,0 +1,45 @@
+# Example Hermes Bridge config. Copy to ~/.config/hermes-bridge/config.yaml
+# or set HERMES_BRIDGE_CONFIG=/path/to/config.yaml.
+
+defaults:
+  remote_term: xterm-256color
+  remote_shell: bash
+  # Resolve tmux through PATH. Put user-local paths first, then common
+  # package-manager/system locations across macOS and Linux.
+  remote_tmux_cmd: tmux
+  remote_path_prepend:
+    - "{remote_home}/.local/bin"
+    - "{remote_home}/bin"
+    - /opt/homebrew/bin
+    - /home/linuxbrew/.linuxbrew/bin
+    - /usr/local/bin
+    - /usr/bin
+    - /bin
+    - /usr/sbin
+    - /sbin
+  tmux_geometry: 120x40
+  local_bin_dir: ~/.local/bin
+  templates_dir: templates
+
+templates_dir: templates
+
+agents:
+  example:
+    command: example-agent
+    display_name: Example Agent
+    ssh_alias: example-ssh-host
+    remote_user: hermes-example
+    remote_home: /home/hermes-example
+    remote_hermes_cmd: /home/hermes-example/.local/bin/hermes
+    docs_prefix: "EXAMPLE:"
+    drive_root: "example/"
+    tmux:
+      enabled: true
+      prefix: example
+    sessions:
+      enabled: true
+    upload:
+      file:
+        enabled: true
+        remote_inbox: /home/hermes-example/Inbox/_Inbox
+        prompt_template: example-upload-file.md
