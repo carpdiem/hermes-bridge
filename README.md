@@ -1,14 +1,17 @@
 # Hermes Bridge
 
-**Hermes Bridge** is a config-driven local launcher for remote [Hermes Agent](https://hermes-agent.nousresearch.com/) workspaces. It replaces one-off per-agent shell scripts with one reusable command plus private local configuration.
+**Hermes Bridge** gives a fleet of remote [Hermes Agent](https://hermes-agent.nousresearch.com/) workspaces one local command surface. It solves two practical problems that show up as soon as you run more than one agent:
+
+1. **Multi-agent sprawl.** `personal`, `research`, `ops`, and `household` should feel like one product, not four copied shell scripts that drift over time.
+2. **Fragile SSH sessions.** Long-running agent work should survive a laptop sleep, Wi-Fi drop, VPN change, or broken SSH connection. The remote TUI runs inside `tmux`, so you can reconnect and reattach instead of losing the session.
 
 The core idea is deliberately boring:
 
 ```text
-one generic implementation + private agent config + tiny command shims
+one generic implementation + private agent config + tiny command shims + remote tmux
 ```
 
-So these can all be the same executable:
+So these can all be the same executable with different config stanzas:
 
 ```text
 personal  -> hermes-bridge
@@ -23,7 +26,11 @@ When invoked through a symlink, Hermes Bridge detects the command name (`argv[0]
 
 ## Why this exists
 
-A multi-agent Hermes setup usually starts with one convenience script:
+Hermes Bridge is for people who run several specialized remote agents from one laptop and want them to behave consistently.
+
+### 1. Uniform control for multiple agents
+
+A multi-agent Hermes setup usually starts with one convenience command:
 
 ```bash
 personal
@@ -43,7 +50,32 @@ ops
 
 If each command is a separate copied script, feature drift is guaranteed. A tmux fix lands in one script but not another. Upload behavior grows in one place. Session browsing diverges. Eventually every small improvement becomes five edits.
 
-Hermes Bridge centralizes the behavior while keeping agent-specific facts in config.
+Hermes Bridge centralizes the behavior while keeping agent-specific facts in config. The same interface works across agents:
+
+```bash
+personal tmux list
+research tmux list
+ops tmux list
+
+personal sessions browse
+research sessions browse
+ops sessions browse
+```
+
+### 2. Remote sessions that survive laptop disconnects
+
+SSH is a transport, not a durable workspace. If the Hermes TUI lives directly inside your laptop's SSH session, closing the laptop or dropping network can kill the work surface you were using.
+
+Hermes Bridge starts Hermes inside a named `tmux` session on the remote host. Your laptop can disconnect; the remote session keeps running. Later you reconnect and attach, browse, capture, or kill sessions through the same agent command:
+
+```bash
+personal new planning       # starts remote Hermes TUI inside tmux
+# laptop sleeps, network drops, SSH disconnects
+personal tmux attach planning
+personal tmux capture planning
+```
+
+The result is a small local control plane for remote agent work: one command model, many agents, persistent remote sessions.
 
 ```mermaid
 flowchart LR
@@ -55,9 +87,12 @@ flowchart LR
     C --> S1[ssh personal-host]
     C --> S2[ssh research-host]
     C --> S3[ssh ops-host]
-    S1 --> T1[remote tmux + hermes --tui]
-    S2 --> T2[remote tmux + hermes --tui]
-    S3 --> T3[remote tmux + hermes --tui]
+    S1 --> T1[remote tmux: personal-*]
+    S2 --> T2[remote tmux: research-*]
+    S3 --> T3[remote tmux: ops-*]
+    T1 --> H1[hermes --tui]
+    T2 --> H2[hermes --tui]
+    T3 --> H3[hermes --tui]
 ```
 
 ---
@@ -65,6 +100,8 @@ flowchart LR
 ## Design goals
 
 - **One implementation.** Fix tmux/session/upload behavior once.
+- **Uniform agent interface.** Every configured agent exposes the same command grammar where its capabilities are enabled.
+- **Persistent remote workspaces.** Start Hermes inside remote `tmux` so agent TUIs can outlive laptop sleep, network drops, and SSH disconnects.
 - **Private config.** No personal SSH aliases, paths, Drive roots, or prompt templates in the public repo.
 - **Symlink dispatch.** `ops tmux list` is equivalent to `hermes-bridge ops tmux list`.
 - **Capability-gated agents.** One agent can have book uploads while another exposes only TUI/session commands.
@@ -110,6 +147,8 @@ personal tmux list
 ## Command model
 
 ### Start or resume remote TUI sessions
+
+A bare agent command creates a remote `tmux` session and attaches to it. Named sessions make it easy to disconnect from one machine and reattach later from another.
 
 ```bash
 personal                         # start a new remote Hermes TUI inside tmux
