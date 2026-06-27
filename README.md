@@ -6,7 +6,7 @@
 
 **Hermes Bridge** gives a fleet of remote [Hermes Agent](https://hermes-agent.nousresearch.com/) workspaces one local command surface. It solves two practical problems that show up once your agents represent different trust boundaries, not just different prompts:
 
-1. **Boundary-aware multi-agent control.** `personal`, `household`, and `work` agents may need different SSH accounts, home directories, auth scopes, inboxes, and prompts. They should still feel like one product, not three copied shell scripts that drift over time.
+1. **Boundary-aware multi-agent control.** `personal`, `household`, and `work` agents may need different SSH accounts, home directories, auth scopes, inboxes, prompts, and may even live on entirely separate physical machines. They should still feel like one product, not three copied shell scripts that drift over time.
 2. **Fragile SSH sessions.** Long-running agent work should survive a laptop sleep, Wi-Fi drop, VPN change, or broken SSH connection. The remote TUI runs inside `tmux`, so you can reconnect and reattach instead of losing the session.
 
 The core idea is deliberately boring:
