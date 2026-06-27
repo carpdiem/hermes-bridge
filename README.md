@@ -4,9 +4,9 @@
   <img src="assets/hermes-bridge-banner.png" alt="Hermes Bridge — one interface, many agents, persistent remote sessions">
 </p>
 
-**Hermes Bridge** gives a fleet of remote [Hermes Agent](https://hermes-agent.nousresearch.com/) workspaces one local command surface. It solves two practical problems that show up as soon as you run more than one agent:
+**Hermes Bridge** gives a fleet of remote [Hermes Agent](https://hermes-agent.nousresearch.com/) workspaces one local command surface. It solves two practical problems that show up once your agents represent different trust boundaries, not just different prompts:
 
-1. **Multi-agent sprawl.** `personal`, `research`, `ops`, and `household` should feel like one product, not four copied shell scripts that drift over time.
+1. **Boundary-aware multi-agent control.** `personal`, `household`, and `work` agents may need different SSH accounts, home directories, auth scopes, inboxes, and prompts. They should still feel like one product, not three copied shell scripts that drift over time.
 2. **Fragile SSH sessions.** Long-running agent work should survive a laptop sleep, Wi-Fi drop, VPN change, or broken SSH connection. The remote TUI runs inside `tmux`, so you can reconnect and reattach instead of losing the session.
 
 The core idea is deliberately boring:
@@ -19,9 +19,8 @@ So these can all be the same executable with different config stanzas:
 
 ```text
 personal  -> hermes-bridge
-research  -> hermes-bridge
-ops       -> hermes-bridge
 household -> hermes-bridge
+work      -> hermes-bridge
 ```
 
 When invoked through a symlink, Hermes Bridge detects the command name (`argv[0]`) and loads the matching agent stanza from your local config. The config lives outside the public repo, so the generic launcher can be open sourced without leaking personal paths, SSH aliases, Drive conventions, or prompt templates.
@@ -30,26 +29,26 @@ When invoked through a symlink, Hermes Bridge detects the command name (`argv[0]
 
 ## Why this exists
 
-Hermes Bridge is for people who run several specialized remote agents from one laptop and want them to behave consistently.
+Hermes Bridge is for people who run specialized remote agents that should stay separated: personal life, shared household/family context, employer work, client work, or any other boundary where mixing files, memories, credentials, or prompts would be sloppy.
 
 ### 1. Uniform control for multiple agents
 
-A multi-agent Hermes setup usually starts with one convenience command:
+A multi-agent Hermes setup usually starts with one private agent:
 
 ```bash
 personal
 ```
 
-Then another agent appears:
+Then a shared household/family agent appears:
 
 ```bash
-research
+household
 ```
 
-Then another:
+Then a work agent appears with different credentials and context:
 
 ```bash
-ops
+work
 ```
 
 If each command is a separate copied script, feature drift is guaranteed. A tmux fix lands in one script but not another. Upload behavior grows in one place. Session browsing diverges. Eventually every small improvement becomes five edits.
@@ -58,12 +57,12 @@ Hermes Bridge centralizes the behavior while keeping agent-specific facts in con
 
 ```bash
 personal tmux list
-research tmux list
-ops tmux list
+household tmux list
+work tmux list
 
 personal sessions browse
-research sessions browse
-ops sessions browse
+household sessions browse
+work sessions browse
 ```
 
 ### 2. Remote sessions that survive laptop disconnects
@@ -84,16 +83,15 @@ The result is a small local control plane for remote agent work: one command mod
 ```mermaid
 flowchart LR
     P[personal] --> B[hermes-bridge]
-    R[research] --> B
-    O[ops] --> B
     H[household] --> B
+    W[work] --> B
     B --> C[~/.config/hermes-bridge/config.yaml]
     C --> S1[ssh personal-host]
-    C --> S2[ssh research-host]
-    C --> S3[ssh ops-host]
+    C --> S2[ssh household-host]
+    C --> S3[ssh work-host]
     S1 --> T1[remote tmux: personal-*]
-    S2 --> T2[remote tmux: research-*]
-    S3 --> T3[remote tmux: ops-*]
+    S2 --> T2[remote tmux: household-*]
+    S3 --> T3[remote tmux: work-*]
     T1 --> H1[hermes --tui]
     T2 --> H2[hermes --tui]
     T3 --> H3[hermes --tui]
@@ -107,7 +105,7 @@ flowchart LR
 - **Uniform agent interface.** Every configured agent exposes the same command grammar where its capabilities are enabled.
 - **Persistent remote workspaces.** Start Hermes inside remote `tmux` so agent TUIs can outlive laptop sleep, network drops, and SSH disconnects.
 - **Private config.** No personal SSH aliases, paths, Drive roots, or prompt templates in the public repo.
-- **Symlink dispatch.** `ops tmux list` is equivalent to `hermes-bridge ops tmux list`.
+- **Symlink dispatch.** `work tmux list` is equivalent to `hermes-bridge work tmux list`.
 - **Capability-gated agents.** One agent can have book uploads while another exposes only TUI/session commands.
 - **Open-sourceable core.** The generic repo contains examples, not your real config.
 - **No hidden system mutation.** Installs are user-local by default (`~/.local/bin`).
@@ -185,11 +183,8 @@ personal sessions continue
 personal upload ~/Desktop/screenshot.png "what is this?"
 personal upload-book ~/Downloads/book.epub "extract the key ideas"
 
-ops upload ~/Desktop/orders.csv "summarize operational risks"
+work upload ~/Desktop/report.pdf "summarize risks and follow-ups"
 ```
-
-Legacy flags like `--upload` and `--upload_book` are intentionally not part of the new interface. Use explicit subcommands.
-The older `upload file <path>` and `upload book <path>` forms remain supported for compatibility, but new configs should prefer `upload <path>` for ordinary files and expose `upload-book <path>` only for agents that enable the optional `upload.book` capability.
 
 ### Validate setup
 
@@ -236,25 +231,25 @@ defaults:
   tmux_geometry: 120x40
 
 agents:
-  ops:
-    command: ops
-    display_name: Ops Agent
-    ssh_alias: ops-host
-    remote_user: hermes-ops
-    remote_home: /home/hermes-ops
-    remote_hermes_cmd: /home/hermes-ops/.local/bin/hermes
-    docs_prefix: "OPS:"
-    drive_root: "Ops/"
+  work:
+    command: work
+    display_name: Work Agent
+    ssh_alias: work-host
+    remote_user: hermes-work
+    remote_home: /home/hermes-work
+    remote_hermes_cmd: /home/hermes-work/.local/bin/hermes
+    docs_prefix: "WORK:"
+    drive_root: "Work/"
     tmux:
       enabled: true
-      prefix: ops
+      prefix: work
     sessions:
       enabled: true
     upload:
       file:
         enabled: true
-        remote_inbox: /home/hermes-ops/Inbox/_Inbox
-        prompt_template: ops-upload-file.md
+        remote_inbox: /home/hermes-work/Inbox/_Inbox
+        prompt_template: work-upload-file.md
 ```
 
 ### Dependency resolution
@@ -289,21 +284,21 @@ Feature availability is controlled by config blocks:
 
 ```yaml
 agents:
-  research:
-    command: research
+  household:
+    command: household
     # ...
     tmux:
       enabled: true
-      prefix: research
+      prefix: household
     sessions:
       enabled: true
 ```
 
-The research agent has no `upload.file` block, so this fails cleanly:
+The household agent has no `upload.file` block, so this fails cleanly:
 
 ```bash
-research upload foo.png
-# research: capability not configured/enabled: upload.file
+household upload foo.png
+# household: capability not configured/enabled: upload.file
 ```
 
 Another agent can enable book upload without forking code:
@@ -327,19 +322,19 @@ That is the central maintenance win: the code knows how to upload; config decide
 Given:
 
 ```bash
-ln -s ~/.local/bin/hermes-bridge ~/.local/bin/ops
+ln -s ~/.local/bin/hermes-bridge ~/.local/bin/work
 ```
 
 running:
 
 ```bash
-ops tmux list
+work tmux list
 ```
 
 is equivalent to:
 
 ```bash
-hermes-bridge ops tmux list
+hermes-bridge work tmux list
 ```
 
 The symlink is just a human-friendly partial application of the first argument. Configuration remains external.
