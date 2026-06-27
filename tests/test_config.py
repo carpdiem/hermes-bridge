@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from hermes_bridge.config import load_config
+from hermes_bridge.config import ConfigError, load_config
 
 SAMPLE = """
 defaults:
@@ -73,6 +73,30 @@ class ConfigTests(unittest.TestCase):
             with self.assertRaises(Exception) as ctx:
                 cfg.validate()
             self.assertIn("upload template not found", str(ctx.exception))
+
+    def test_validate_rejects_non_mapping_tmux_style(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.yaml"
+            p.write_text(SAMPLE.replace("      prefix: personal", "      prefix: personal\n      style: gruvbox"))
+            template = Path(d) / "templates" / "upload.md"
+            template.parent.mkdir()
+            template.write_text("Uploaded {{ filename }}")
+            cfg = load_config(str(p))
+            with self.assertRaises(ConfigError) as ctx:
+                cfg.validate()
+            self.assertIn("tmux.style must be a mapping", str(ctx.exception))
+
+    def test_validate_rejects_unknown_tmux_style_option(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.yaml"
+            p.write_text(SAMPLE.replace("      prefix: personal", "      prefix: personal\n      style:\n        status-style: \"bg=#111111,fg=#eeeeee\"\n        totally-unknown-option: nope"))
+            template = Path(d) / "templates" / "upload.md"
+            template.parent.mkdir()
+            template.write_text("Uploaded {{ filename }}")
+            cfg = load_config(str(p))
+            with self.assertRaises(ConfigError) as ctx:
+                cfg.validate()
+            self.assertIn("unsupported tmux.style option", str(ctx.exception))
 
 if __name__ == "__main__":
     unittest.main()

@@ -278,6 +278,45 @@ If your environment needs an absolute binary, set `remote_tmux_cmd` explicitly
 for that config. For normal portable configs, prefer PATH resolution and use
 `doctor` to see both the configured command and the resolved remote binary.
 
+### Tmux status bar styling
+
+Hermes Bridge applies a small per-session tmux status-bar theme after creating
+a session. If an agent does not configure a style, the built-in defaults stay
+unchanged:
+
+```yaml
+tmux:
+  enabled: true
+  prefix: work
+```
+
+To customize one agent without touching that remote user's `~/.tmux.conf`, add
+a `tmux.style` mapping. The MVP supports the same subset of tmux options that
+Hermes Bridge sets by default:
+
+```yaml
+tmux:
+  enabled: true
+  prefix: work
+  style:
+    status-position: bottom
+    status-style: "bg=#1d2021,fg=#ebdbb2"
+    status-left-style: "bg=#1d2021,fg=#fabd2f"
+    status-right-style: "bg=#1d2021,fg=#fabd2f"
+    window-status-current-style: "bg=#1d2021,fg=#fabd2f"
+    message-style: "bg=#d79921,fg=#282828,bold"
+    pane-active-border-style: "fg=#d79921"
+    status-left: " Work | #S "
+    status-right: " %H:%M "
+```
+
+Supported keys: `status-position`, `status-style`, `status-left-style`,
+`status-right-style`, `window-status-current-style`, `message-style`,
+`pane-active-border-style`, `status-left`, and `status-right`. Underscore
+aliases such as `status_right` are accepted and normalized to tmux's hyphenated
+option names. Quote values containing `#`, because YAML treats an unquoted `#`
+after whitespace as a comment marker.
+
 ### Capability blocks
 
 Feature availability is controlled by config blocks:

@@ -23,6 +23,18 @@ DEFAULT_REMOTE_PATH_PREPEND = [
     "/usr/sbin",
     "/sbin",
 ]
+TMUX_STYLE_OPTION_NAMES = (
+    "status-position",
+    "status-style",
+    "status-left-style",
+    "status-right-style",
+    "window-status-current-style",
+    "message-style",
+    "pane-active-border-style",
+    "status-left",
+    "status-right",
+)
+TMUX_STYLE_OPTION_SET = set(TMUX_STYLE_OPTION_NAMES)
 
 
 def default_config_path() -> Path:
@@ -221,6 +233,24 @@ class AgentConfig:
         except Exception as exc:
             raise ConfigError(f"invalid tmux geometry for {self.key}: {raw!r}; expected COLSxROWS") from exc
 
+    def tmux_style_overrides(self) -> Dict[str, str]:
+        block = self.tmux_block()
+        raw = block.get("style") or {}
+        if not raw:
+            return {}
+        if not isinstance(raw, dict):
+            raise ConfigError(f"agents.{self.key}.tmux.style must be a mapping")
+        out: Dict[str, str] = {}
+        for raw_key, raw_value in raw.items():
+            key = str(raw_key).replace("_", "-")
+            if key not in TMUX_STYLE_OPTION_SET:
+                allowed = ", ".join(TMUX_STYLE_OPTION_NAMES)
+                raise ConfigError(f"unsupported tmux.style option for {self.key}: {raw_key!r}; allowed: {allowed}")
+            if isinstance(raw_value, (dict, list)):
+                raise ConfigError(f"agents.{self.key}.tmux.style.{key} must be a scalar string")
+            out[key] = str(raw_value)
+        return out
+
 
 @dataclass(frozen=True)
 class BridgeConfig:
@@ -290,6 +320,7 @@ class BridgeConfig:
             if agent.capability_enabled("tmux"):
                 _ = agent.remote_tmux_cmd()
                 _ = agent.tmux_geometry()
+                _ = agent.tmux_style_overrides()
             upload = agent.block("upload")
             for kind, block in upload.items():
                 if isinstance(block, dict) and block.get("enabled"):

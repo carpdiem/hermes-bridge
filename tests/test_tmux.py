@@ -6,6 +6,7 @@ from hermes_bridge.remote import CommandResult
 from hermes_bridge.tmux import (
     attach,
     create_session,
+    _style_options,
     list_sessions,
     sanitize_session_piece,
     selector_to_target,
@@ -13,10 +14,12 @@ from hermes_bridge.tmux import (
 )
 
 
-def agent(socket_path=""):
+def agent(socket_path="", style=None):
     tmux = {"enabled": True, "prefix": "ops"}
     if socket_path:
         tmux["socket_path"] = socket_path
+    if style is not None:
+        tmux["style"] = style
     return AgentConfig(
         key="ops",
         raw={
@@ -94,6 +97,31 @@ class TmuxTests(unittest.TestCase):
         self.assertIn("new-session -d", command)
         self.assertIn("has-session -t \"$name\"", command)
         self.assertIn("tmux session exited immediately", command)
+
+    def test_default_style_options_preserve_current_palette(self):
+        options = _style_options(agent())
+        self.assertEqual(options["status-position"], "bottom")
+        self.assertEqual(options["status-style"], "bg=#3c3836,fg=#ebdbb2")
+        self.assertEqual(options["status-left-style"], "bg=#3c3836,fg=#fabd2f")
+        self.assertEqual(options["status-right-style"], "bg=#3c3836,fg=#fabd2f")
+        self.assertEqual(options["window-status-current-style"], "bg=#3c3836,fg=#fabd2f")
+        self.assertEqual(options["message-style"], "bg=#d79921,fg=#282828,bold")
+        self.assertEqual(options["pane-active-border-style"], "fg=#d79921")
+        self.assertEqual(options["status-left"], " Ops | #S ")
+        self.assertEqual(options["status-right"], " %H:%M ")
+
+    def test_agent_style_overrides_subset_and_accepts_snake_case(self):
+        options = _style_options(agent(style={"status-style": "bg=#111111,fg=#eeeeee", "status_right": " #S "}))
+        self.assertEqual(options["status-style"], "bg=#111111,fg=#eeeeee")
+        self.assertEqual(options["status-right"], " #S ")
+        self.assertEqual(options["status-left"], " Ops | #S ")
+
+    def test_create_session_applies_agent_style_overrides(self):
+        remote = FakeRemote([CommandResult(0, "ops\n", "")])
+        create_session(agent(style={"message-style": "bg=#111111,fg=#eeeeee,bold"}), "ops", "/Users/ops/.local/bin/hermes --tui", remote)
+        command = remote.calls[0]["command"]
+        self.assertIn("message-style", command)
+        self.assertIn("bg=#111111,fg=#eeeeee,bold", command)
 
 
 if __name__ == "__main__":

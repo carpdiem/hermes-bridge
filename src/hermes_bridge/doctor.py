@@ -27,7 +27,8 @@ def doctor_agent(agent: AgentConfig, *, remote_checks: bool = True) -> str:
     lines.append(f"remote_path: {agent.remote_path}")
     if agent.capability_enabled("tmux"):
         socket = agent.tmux_socket_path() or "<default>"
-        lines.append(f"tmux: enabled prefix={agent.tmux_prefix()} cmd={agent.remote_tmux_cmd()} socket={socket} geometry={agent.tmux_geometry()[0]}x{agent.tmux_geometry()[1]}")
+        style_overrides = ",".join(agent.tmux_style_overrides().keys()) or "<default>"
+        lines.append(f"tmux: enabled prefix={agent.tmux_prefix()} cmd={agent.remote_tmux_cmd()} socket={socket} geometry={agent.tmux_geometry()[0]}x{agent.tmux_geometry()[1]} style_overrides={style_overrides}")
     else:
         lines.append("tmux: disabled")
     lines.append(f"sessions: {'enabled' if agent.capability_enabled('sessions') else 'disabled'}")

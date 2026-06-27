@@ -106,21 +106,29 @@ def hermes_tui_command(agent: AgentConfig, hermes_args: list[str]) -> str:
     return shlex.join([agent.remote_hermes_cmd, "--tui", *hermes_args])
 
 
+def _style_options(agent: AgentConfig) -> dict[str, str]:
+    label = f" {agent.display_name} | #S "
+    options = {
+        "status-position": "bottom",
+        "status-style": "bg=#3c3836,fg=#ebdbb2",
+        "status-left-style": "bg=#3c3836,fg=#fabd2f",
+        "status-right-style": "bg=#3c3836,fg=#fabd2f",
+        "window-status-current-style": "bg=#3c3836,fg=#fabd2f",
+        "message-style": "bg=#d79921,fg=#282828,bold",
+        "pane-active-border-style": "fg=#d79921",
+        "status-left": label,
+        "status-right": " %H:%M ",
+    }
+    options.update(agent.tmux_style_overrides())
+    return options
+
+
 def _style_commands(agent: AgentConfig, session_var: str = '"$name"') -> str:
     tmux = _tmux(agent)
-    label = f" {agent.display_name} | #S "
-    pairs = [
-        ("status-position", "bottom"),
-        ("status-style", "bg=#3c3836,fg=#ebdbb2"),
-        ("status-left-style", "bg=#3c3836,fg=#fabd2f"),
-        ("status-right-style", "bg=#3c3836,fg=#fabd2f"),
-        ("window-status-current-style", "bg=#3c3836,fg=#fabd2f"),
-        ("message-style", "bg=#d79921,fg=#282828,bold"),
-        ("pane-active-border-style", "fg=#d79921"),
-        ("status-left", label),
-        ("status-right", " %H:%M "),
-    ]
-    return "; ".join(f"{tmux} set-option -t {session_var} {shlex.quote(k)} {shlex.quote(v)} >/dev/null 2>&1 || true" for k, v in pairs)
+    return "; ".join(
+        f"{tmux} set-option -t {session_var} {shlex.quote(k)} {shlex.quote(v)} >/dev/null 2>&1 || true"
+        for k, v in _style_options(agent).items()
+    )
 
 
 def create_session(agent: AgentConfig, base_name: str, remote_command: str, remote: Optional[Remote] = None) -> str:
