@@ -1,5 +1,9 @@
 # Hermes Bridge
 
+<p align="center">
+  <img src="assets/hermes-bridge-banner.png" alt="Hermes Bridge — one interface, many agents, persistent remote sessions">
+</p>
+
 **Hermes Bridge** gives a fleet of remote [Hermes Agent](https://hermes-agent.nousresearch.com/) workspaces one local command surface. It solves two practical problems that show up as soon as you run more than one agent:
 
 1. **Multi-agent sprawl.** `personal`, `research`, `ops`, and `household` should feel like one product, not four copied shell scripts that drift over time.
