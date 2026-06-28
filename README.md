@@ -177,6 +177,34 @@ personal sessions resume 20260625_abc123
 personal sessions continue
 ```
 
+### Update Hermes without leaving stale bridge TUIs
+
+Bridge-managed updates are conservative by default. A dry run inventories live
+bridge tmux sessions, reads Hermes' existing live TUI active-session file when
+available, and reports how each session would be recreated:
+
+```bash
+personal update --dry-run
+hermes-bridge fleet status
+hermes-bridge fleet update personal work --dry-run
+```
+
+To apply an update, pass `--yes`. Hermes Bridge refuses to proceed if any
+selected bridge tmux session is attached, if a prefixed tmux session does not
+look like a Hermes TUI, or if one tmux session exposes multiple live Hermes
+session IDs. Detached sessions are closed with `/exit`, `hermes update --yes`
+runs for that remote user, and the same tmux session names are recreated with
+`--resume <live-session-id>` where a live ID was discoverable:
+
+```bash
+personal update --yes
+hermes-bridge fleet update --all --yes
+```
+
+`--check`, `--backup`, `--no-backup`, `--branch NAME`, and `--force` are passed
+through to `hermes update` where relevant. No persistent bridge session metadata
+is used; the update plan is built from live tmux/process state at execution time.
+
 ### Upload files when configured
 
 ```bash

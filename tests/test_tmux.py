@@ -6,6 +6,7 @@ from hermes_bridge.remote import CommandResult
 from hermes_bridge.tmux import (
     attach,
     create_session,
+    create_session_exact,
     _style_options,
     list_sessions,
     sanitize_session_piece,
@@ -97,6 +98,16 @@ class TmuxTests(unittest.TestCase):
         self.assertIn("new-session -d", command)
         self.assertIn("has-session -t \"$name\"", command)
         self.assertIn("tmux session exited immediately", command)
+
+    def test_create_session_exact_preserves_requested_name(self):
+        remote = FakeRemote([CommandResult(0, "ops-plan\n", "")])
+        self.assertEqual(create_session_exact(agent(), "ops-plan", "/Users/ops/.local/bin/hermes --tui", remote), "ops-plan")
+        self.assertIn("new-session -d -s \"$name\"", remote.calls[0]["command"])
+        self.assertIn("name=ops-plan", remote.calls[0]["command"])
+
+    def test_create_session_exact_refuses_wrong_prefix(self):
+        with self.assertRaisesRegex(BridgeError, "refusing to create non-ops"):
+            create_session_exact(agent(), "other-plan", "/Users/ops/.local/bin/hermes --tui", FakeRemote([]))
 
     def test_default_style_options_preserve_current_palette(self):
         options = _style_options(agent())

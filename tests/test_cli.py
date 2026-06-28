@@ -87,6 +87,33 @@ class CliTests(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("hermes_bridge_version:", out.getvalue())
 
+    def test_agent_update_dispatches_update_lifecycle(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.yaml"
+            p.write_text(CONFIG + """
+    tmux:
+      enabled: true
+      prefix: ops
+""")
+            out = io.StringIO()
+            with patch("hermes_bridge.cli.execute_agent_update", return_value="plan") as fake_update, redirect_stdout(out):
+                code = main(["--config", str(p), "update", "--dry-run"], invoked_as="ops")
+            self.assertEqual(code, 0)
+            self.assertEqual(fake_update.call_args.args[0].command, "ops")
+            self.assertTrue(fake_update.call_args.args[1].dry_run)
+            self.assertIn("plan", out.getvalue())
+
+    def test_fleet_status_dispatches(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.yaml"
+            p.write_text(CONFIG)
+            out = io.StringIO()
+            with patch("hermes_bridge.cli.fleet_status", return_value="fleet") as fake_status, redirect_stdout(out):
+                code = main(["--config", str(p), "fleet", "status"], invoked_as="hermes-bridge")
+            self.assertEqual(code, 0)
+            self.assertTrue(fake_status.called)
+            self.assertIn("fleet", out.getvalue())
+
     def test_upload_defaults_to_file_kind(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.yaml"
