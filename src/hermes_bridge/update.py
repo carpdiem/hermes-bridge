@@ -297,22 +297,34 @@ def format_plan(plan: AgentUpdatePlan, *, include_header: bool = True) -> str:
 
 def _stop_command(agent: AgentConfig, names: Iterable[str], timeout: int) -> str:
     tmux = " ".join(shlex.quote(part) for part in _tmux_argv(agent))
-    quoted_names = " ".join(shlex.quote(name) for name in names)
+    name_list = list(names)
+    if not name_list:
+        return ":"
+    # Do not rely on shell word-splitting of a scalar list. zsh preserves
+    # ``$names`` as one word by default, which turns several tmux sessions into
+    # one invalid target. Emit explicit per-session commands instead.
+    send_commands = []
+    alive_checks = []
+    for name in name_list:
+        target = shlex.quote(name)
+        send_commands.append(
+            f"if {tmux} has-session -t {target} >/dev/null 2>&1; then {tmux} send-keys -t {target} /exit Enter; fi"
+        )
+        alive_checks.append(
+            f"if {tmux} has-session -t {target} >/dev/null 2>&1; then alive=\"$alive {name}\"; fi"
+        )
     return (
-        f"names={shlex.quote(quoted_names)}; "
-        "for name in $names; do "
-        f"{tmux} send-keys -t \"$name\" /exit Enter; "
-        "done; "
-        f"deadline=$(( $(date +%s) + {int(timeout)} )); "
-        "while :; do "
-        "alive=; "
-        "for name in $names; do "
-        f"if {tmux} has-session -t \"$name\" >/dev/null 2>&1; then alive=\"$alive $name\"; fi; "
-        "done; "
-        "if [ -z \"$alive\" ]; then exit 0; fi; "
-        "if [ $(date +%s) -ge $deadline ]; then printf 'sessions did not exit before timeout:%s\\n' \"$alive\" >&2; exit 91; fi; "
-        "sleep 1; "
-        "done"
+        "; ".join(send_commands)
+        + "; "
+        + f"deadline=$(( $(date +%s) + {int(timeout)} )); "
+        + "while :; do "
+        + "alive=; "
+        + "; ".join(alive_checks)
+        + "; "
+        + "if [ -z \"$alive\" ]; then exit 0; fi; "
+        + "if [ $(date +%s) -ge $deadline ]; then printf 'sessions did not exit before timeout:%s\\n' \"$alive\" >&2; exit 91; fi; "
+        + "sleep 1; "
+        + "done"
     )
 
 
