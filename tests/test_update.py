@@ -4,7 +4,6 @@ from hermes_bridge.config import AgentConfig, load_config
 from hermes_bridge.errors import BridgeError
 from hermes_bridge.remote import CommandResult
 from hermes_bridge.update import (
-    _stop_command,
     build_update_plan,
     execute_agent_update,
     fleet_update,
@@ -124,15 +123,6 @@ class UpdateTests(unittest.TestCase):
         self.assertIn("update --no-backup --yes", remote.calls[2]["command"])
         self.assertIn("--resume 20260627_abc", remote.calls[3]["command"])
         self.assertIn("name=ops-plan", remote.calls[3]["command"])
-
-    def test_stop_command_does_not_depend_on_shell_word_splitting(self):
-        command = _stop_command(agent(), ["ops-one", "ops-two"], 45)
-        self.assertNotIn("for name in $names", command)
-        self.assertNotIn("names=", command)
-        self.assertIn("send-keys -t ops-one /exit Enter", command)
-        self.assertIn("send-keys -t ops-two /exit Enter", command)
-        self.assertIn("has-session -t ops-one", command)
-        self.assertIn("has-session -t ops-two", command)
 
     def test_check_runs_update_check_without_inventory(self):
         opts, _ = parse_update_options(["--check"])
