@@ -26,6 +26,7 @@ class TmuxTuiInventory:
     attached: bool
     created: str
     pane_pids: tuple[int, ...]
+    tui_pids: tuple[int, ...]
     tui_detected: bool
     active_session_files: tuple[str, ...]
     session_ids: tuple[str, ...]
@@ -159,18 +160,29 @@ for session in sessions:
     active_files = set()
     session_ids = set()
     active_file_errors = set()
+    tui_pids = set()
     tui_detected = False
 
     for pane_pid in pane_pids:
         for pid in [pane_pid] + descendants(pane_pid):
             cmd = command_for(pid)
             low = cmd.lower()
-            if ("hermes" in low and "--tui" in low) or "ui-tui" in low or "tui_gateway" in low:
+            is_node_tui = "node" in low and "ui-tui" in low
+            is_gateway = "tui_gateway" in low
+            if ("hermes" in low and "--tui" in low) or is_node_tui or is_gateway:
                 tui_detected = True
+            if is_node_tui:
+                # The Node TUI owns the terminal UI and has a SIGTERM handler
+                # that performs Hermes' normal gateway cleanup.  Record this
+                # PID for bridge-managed shutdown; do not use arbitrary child
+                # process PIDs that merely inherited the active-session env.
+                tui_pids.add(pid)
             active = active_file_for(pid)
             if active:
                 tui_detected = True
                 active_files.add(active)
+                if is_node_tui:
+                    tui_pids.add(pid)
                 sid, err = read_session_id(active)
                 if sid:
                     session_ids.add(sid)
@@ -182,6 +194,7 @@ for session in sessions:
         "attached": session["attached"],
         "created": session["created"],
         "pane_pids": pane_pids,
+        "tui_pids": sorted(tui_pids),
         "tui_detected": tui_detected,
         "active_session_files": sorted(active_files),
         "session_ids": sorted(session_ids),
@@ -228,6 +241,7 @@ def inventory_agent(agent: AgentConfig, remote: Optional[Remote] = None) -> tupl
                 attached=bool(item.get("attached")),
                 created=str(item.get("created") or ""),
                 pane_pids=tuple(int(x) for x in item.get("pane_pids") or []),
+                tui_pids=tuple(int(x) for x in item.get("tui_pids") or []),
                 tui_detected=bool(item.get("tui_detected")),
                 active_session_files=tuple(str(x) for x in item.get("active_session_files") or []),
                 session_ids=tuple(str(x) for x in item.get("session_ids") or []),
@@ -295,21 +309,34 @@ def format_plan(plan: AgentUpdatePlan, *, include_header: bool = True) -> str:
     return "\n".join(lines)
 
 
-def _stop_command(agent: AgentConfig, names: Iterable[str], timeout: int) -> str:
+def _stop_command(agent: AgentConfig, targets: Iterable[object], timeout: int) -> str:
     tmux = " ".join(shlex.quote(part) for part in _tmux_argv(agent))
-    name_list = list(names)
-    if not name_list:
+    target_list: list[tuple[str, tuple[int, ...]]] = []
+    for target in targets:
+        if isinstance(target, TmuxTuiInventory):
+            target_list.append((target.name, target.tui_pids))
+        else:
+            target_list.append((str(target), ()))
+    if not target_list:
         return ":"
-    # Do not rely on shell word-splitting of a scalar list. zsh preserves
-    # ``$names`` as one word by default, which turns several tmux sessions into
-    # one invalid target. Emit explicit per-session commands instead.
+    # Prefer process-level graceful termination over typing into the TUI.  The
+    # Node TUI installs a SIGTERM handler that kills the Python gateway and
+    # resets terminal modes.  Text injection is a fallback only: detached TUIs
+    # may have stale drafts, focus state, or a busy turn, and `/exit` can just
+    # sit in the composer instead of closing the app.
     send_commands = []
     alive_checks = []
-    for name in name_list:
+    for name, pids in target_list:
         target = shlex.quote(name)
-        send_commands.append(
-            f"if {tmux} has-session -t {target} >/dev/null 2>&1; then {tmux} send-keys -t {target} /exit Enter; fi"
-        )
+        if pids:
+            pid_args = " ".join(str(int(pid)) for pid in pids)
+            send_commands.append(f"kill -TERM {pid_args} >/dev/null 2>&1 || true")
+        else:
+            send_commands.append(
+                f"if {tmux} has-session -t {target} >/dev/null 2>&1; then "
+                f"{tmux} send-keys -t {target} C-c; sleep 0.1; {tmux} send-keys -t {target} /quit Enter; "
+                "fi"
+            )
         alive_checks.append(
             f"if {tmux} has-session -t {target} >/dev/null 2>&1; then alive=\"$alive {name}\"; fi"
         )
@@ -335,7 +362,7 @@ def stop_sessions(plan: AgentUpdatePlan, options: UpdateOptions, remote: Optiona
     if not names:
         return
     remote = remote or Remote(plan.agent)
-    remote.run(_stop_command(plan.agent, names, options.stop_timeout), check=True)
+    remote.run(_stop_command(plan.agent, plan.sessions, options.stop_timeout), check=True)
 
 
 def run_hermes_update(agent: AgentConfig, options: UpdateOptions, remote: Optional[Remote] = None) -> str:

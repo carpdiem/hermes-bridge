@@ -109,6 +109,7 @@ class UpdateTests(unittest.TestCase):
                 "attached": False,
                 "created": "100",
                 "pane_pids": [12],
+                "tui_pids": [222],
                 "tui_detected": True,
                 "active_session_files": ["/tmp/active.json"],
                 "session_ids": ["20260627_abc"],
@@ -120,7 +121,8 @@ class UpdateTests(unittest.TestCase):
         ])
         out = execute_agent_update(agent(), opts, remote)
         self.assertIn("Hermes update completed", out)
-        self.assertIn("/exit", remote.calls[1]["command"])
+        self.assertIn("kill -TERM 222", remote.calls[1]["command"])
+        self.assertNotIn("/exit", remote.calls[1]["command"])
         self.assertIn("update --no-backup --yes", remote.calls[2]["command"])
         self.assertIn("--resume 20260627_abc", remote.calls[3]["command"])
         self.assertIn("name=ops-plan", remote.calls[3]["command"])
@@ -129,10 +131,30 @@ class UpdateTests(unittest.TestCase):
         command = _stop_command(agent(), ["ops-one", "ops-two"], 45)
         self.assertNotIn("for name in $names", command)
         self.assertNotIn("names=", command)
-        self.assertIn("send-keys -t ops-one /exit Enter", command)
-        self.assertIn("send-keys -t ops-two /exit Enter", command)
+        self.assertIn("send-keys -t ops-one C-c", command)
+        self.assertIn("send-keys -t ops-one /quit Enter", command)
+        self.assertIn("send-keys -t ops-two C-c", command)
+        self.assertIn("send-keys -t ops-two /quit Enter", command)
         self.assertIn("has-session -t ops-one", command)
         self.assertIn("has-session -t ops-two", command)
+
+    def test_stop_command_uses_sigterm_for_discovered_tui_pids(self):
+        session = inventory_agent(agent(), FakeRemote([
+            CommandResult(0, inventory_json({
+                "name": "ops-plan",
+                "attached": False,
+                "created": "100",
+                "pane_pids": [12],
+                "tui_pids": [222, 333],
+                "tui_detected": True,
+                "active_session_files": ["/tmp/active.json"],
+                "session_ids": ["20260627_abc"],
+                "active_file_errors": [],
+            }), "")
+        ]))[0]
+        command = _stop_command(agent(), [session], 45)
+        self.assertIn("kill -TERM 222 333", command)
+        self.assertNotIn("send-keys", command)
 
     def test_check_runs_update_check_without_inventory(self):
         opts, _ = parse_update_options(["--check"])
