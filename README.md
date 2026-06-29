@@ -192,9 +192,8 @@ hermes-bridge fleet update personal work --dry-run
 To apply an update, pass `--yes`. Hermes Bridge refuses to proceed if any
 selected bridge tmux session is attached, if a prefixed tmux session does not
 look like a Hermes TUI, or if one tmux session exposes multiple live Hermes
-session IDs. Detached sessions are closed by gracefully terminating the live
-Hermes TUI process discovered under the tmux pane, `hermes update --yes` runs
-for that remote user, and the same tmux session names are recreated with
+session IDs. Detached sessions are closed with `/exit`, `hermes update --yes`
+runs for that remote user, and the same tmux session names are recreated with
 `--resume <live-session-id>` where a live ID was discoverable:
 
 ```bash
