@@ -131,13 +131,18 @@ def _style_commands(agent: AgentConfig, session_var: str = '"$name"') -> str:
     )
 
 
-def _create_session_command(agent: AgentConfig, name_expr: str, remote_command: str) -> str:
+def create_session(agent: AgentConfig, base_name: str, remote_command: str, remote: Optional[Remote] = None) -> str:
+    remote = remote or Remote(agent)
+    prefix = agent.tmux_prefix()
+    base = session_name_for(prefix, base_name)
     cols, rows = agent.tmux_geometry()
     tmux = _tmux(agent)
+    q_base = shlex.quote(base)
     q_cmd = shlex.quote(remote_command)
     style = _style_commands(agent)
-    return (
-        f"name={name_expr}; "
+    command = (
+        f"base={q_base}; name=\"$base\"; i=2; "
+        f"while {tmux} has-session -t \"$name\" >/dev/null 2>&1; do name=\"$base-$i\"; i=$((i+1)); done; "
         f"{tmux} new-session -d -s \"$name\" -x {cols} -y {rows} {q_cmd}; "
         "sleep 0.2; "
         f"if ! {tmux} has-session -t \"$name\" >/dev/null 2>&1; then "
@@ -146,35 +151,10 @@ def _create_session_command(agent: AgentConfig, name_expr: str, remote_command: 
         f"{style}; "
         "printf '%s\\n' \"$name\""
     )
-
-
-def create_session(agent: AgentConfig, base_name: str, remote_command: str, remote: Optional[Remote] = None) -> str:
-    remote = remote or Remote(agent)
-    prefix = agent.tmux_prefix()
-    base = session_name_for(prefix, base_name)
-    tmux = _tmux(agent)
-    q_base = shlex.quote(base)
-    command = (
-        f"base={q_base}; name=\"$base\"; i=2; "
-        f"while {tmux} has-session -t \"$name\" >/dev/null 2>&1; do name=\"$base-$i\"; i=$((i+1)); done; "
-        + _create_session_command(agent, '"$name"', remote_command)
-    )
     result = remote.run(command, check=True)
     name = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
     if not name:
         raise BridgeError("tmux session was not created")
-    return name
-
-
-def create_session_exact(agent: AgentConfig, session_name: str, remote_command: str, remote: Optional[Remote] = None) -> str:
-    remote = remote or Remote(agent)
-    prefix = agent.tmux_prefix()
-    if not (session_name == prefix or session_name.startswith(prefix + "-")):
-        raise BridgeError(f"refusing to create non-{prefix} tmux session: {session_name}")
-    result = remote.run(_create_session_command(agent, shlex.quote(session_name), remote_command), check=True)
-    name = result.stdout.strip().splitlines()[-1] if result.stdout.strip() else ""
-    if name != session_name:
-        raise BridgeError(f"tmux session was not recreated exactly: expected {session_name}, got {name or '<none>'}")
     return name
 
 

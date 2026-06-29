@@ -12,11 +12,10 @@ from .doctor import doctor_agent, doctor_config
 from .errors import BridgeError
 from .linking import link_agent, link_core, select_agents, unlink_agent
 from .tmux import attach, capture, create_session, format_sessions, hermes_tui_command, kill, list_sessions
-from .update import execute_agent_update, fleet_status, fleet_update, parse_update_options
 from .upload import upload
 
 BASE_COMMANDS = {"hermes-bridge", "hermes-bridge.py", "__main__.py"}
-GLOBAL_COMMANDS = {"config", "link", "unlink", "install", "doctor", "fleet", "--help", "-h", "help", "--version", "version"}
+GLOBAL_COMMANDS = {"config", "link", "unlink", "install", "doctor", "--help", "-h", "help", "--version", "version"}
 
 USAGE = """Usage:
   hermes-bridge <agent> [command] [args...]
@@ -27,15 +26,12 @@ Agent commands:
   <agent> new [name] [-- HERMES_ARGS...]   Start a named remote Hermes TUI
   <agent> tmux list|browse|attach|capture|kill
   <agent> sessions list|browse|resume|continue
-  <agent> update [--dry-run|--yes] [--check] [--backup|--no-backup] [--branch NAME]
   <agent> upload <path> [--attach|--foreground] [--name NAME] [--] [message...]
   <agent> upload-book <path> [--attach|--foreground] [--name NAME] [--] [message...]
   <agent> doctor [--no-remote]
 
 Global commands:
   hermes-bridge doctor [--all|AGENT] [--no-remote]
-  hermes-bridge fleet status
-  hermes-bridge fleet update (--all|AGENT...) [--dry-run|--yes] [--check] [--backup|--no-backup] [--branch NAME]
   hermes-bridge config path|show|validate
   hermes-bridge link [AGENT|--all] [--mode symlink|wrapper] [--bin-dir DIR] [--target PATH] [--force]
   hermes-bridge unlink [AGENT|--all] [--bin-dir DIR] [--force]
@@ -186,13 +182,6 @@ def handle_agent(config, agent, argv: list[str]) -> int:
             print(f"Started remote tmux session: {session}")
             return attach(agent, session)
         raise BridgeError(f"unknown sessions command: {sub}")
-    if cmd == "update":
-        agent.tmux_block()
-        options, rest = parse_update_options(args)
-        if rest:
-            raise BridgeError("unknown update option(s): " + " ".join(rest))
-        print(execute_agent_update(agent, options))
-        return 0
     if cmd in {"upload", "upload-book"}:
         kind, src, rest = split_upload_args(agent.command, cmd, args)
         foreground = False
@@ -278,16 +267,6 @@ def handle_global(config, argv: list[str], invoked_as: str) -> int:
         for agent in targets:
             print("\n" + doctor_agent(agent, remote_checks=opts["remote"]))
         return 0
-    if cmd == "fleet":
-        sub = args[0] if args else "status"
-        subargs = args[1:]
-        if sub == "status":
-            print(fleet_status(config))
-            return 0
-        if sub == "update":
-            print(fleet_update(config, subargs))
-            return 0
-        raise BridgeError("usage: hermes-bridge fleet status|update")
     if cmd in {"link", "install"}:
         opts, rest = _parse_common_options(args)
         all_agents = bool(opts["all"] or cmd == "install")
