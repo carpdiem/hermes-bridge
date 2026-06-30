@@ -128,6 +128,33 @@ class CliTests(unittest.TestCase):
                 code = main(["--config", str(p), "upload", "book", "/tmp/book.epub"], invoked_as="ops")
             self.assertEqual(code, 0)
             self.assertEqual(fake_upload.call_args.args[2:4], ("book", "/tmp/book.epub"))
+    def test_dehydrate_dispatches_lifecycle_command(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.yaml"
+            p.write_text(CONFIG + """
+    tmux:
+      enabled: true
+""")
+            out = io.StringIO()
+            with patch("hermes_bridge.cli.dehydrate", return_value="dehydrated") as fake, redirect_stdout(out):
+                code = main(["--config", str(p), "dehydrate", "--dry-run"], invoked_as="ops")
+            self.assertEqual(code, 0)
+            self.assertTrue(fake.call_args.args[1].dry_run)
+            self.assertIn("dehydrated", out.getvalue())
+
+    def test_rehydrate_dispatches_lifecycle_command(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.yaml"
+            p.write_text(CONFIG + """
+    tmux:
+      enabled: true
+""")
+            out = io.StringIO()
+            with patch("hermes_bridge.cli.rehydrate", return_value="rehydrated") as fake, redirect_stdout(out):
+                code = main(["--config", str(p), "rehydrate", "--snapshot", "manual"], invoked_as="ops")
+            self.assertEqual(code, 0)
+            self.assertEqual(fake.call_args.args[1].snapshot, "manual")
+            self.assertIn("rehydrated", out.getvalue())
 
 
 if __name__ == "__main__":

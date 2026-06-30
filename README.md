@@ -177,6 +177,25 @@ personal sessions resume 20260625_abc123
 personal sessions continue
 ```
 
+### Dehydrate and rehydrate bridge tmux sessions
+
+For manual maintenance windows, snapshot and stop detached bridge-managed TUIs, run your maintenance manually, then recreate the same tmux sessions from the snapshot:
+
+```bash
+personal dehydrate --dry-run      # inspect live tmux→Hermes session mapping only
+personal dehydrate --replace      # write ~/.cache/hermes-bridge/snapshots/personal/current.json and stop detached TUIs
+# ssh to the remote user and run manual maintenance, e.g. hermes update
+personal rehydrate --dry-run      # inspect what would be recreated
+personal rehydrate                # recreate same tmux names, resuming captured Hermes sessions when possible
+```
+
+Safety rules:
+
+- `dehydrate` refuses attached tmux sessions; detach first with `Ctrl-b d`.
+- Existing snapshots are not overwritten unless you pass `--replace` or choose another `--snapshot NAME`.
+- `rehydrate` refuses to recreate over an already-live tmux session with the same name.
+- Snapshots are kept after rehydrate as recovery artifacts; delete them manually when satisfied.
+
 ### Upload files when configured
 
 ```bash

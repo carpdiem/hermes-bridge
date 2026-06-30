@@ -11,6 +11,7 @@ from .config import ConfigError, load_config, resolve_config_path
 from .doctor import doctor_agent, doctor_config
 from .errors import BridgeError
 from .linking import link_agent, link_core, select_agents, unlink_agent
+from .lifecycle import dehydrate, parse_lifecycle_options, rehydrate
 from .tmux import attach, capture, create_session, format_sessions, hermes_tui_command, kill, list_sessions
 from .upload import upload
 
@@ -26,6 +27,8 @@ Agent commands:
   <agent> new [name] [-- HERMES_ARGS...]   Start a named remote Hermes TUI
   <agent> tmux list|browse|attach|capture|kill
   <agent> sessions list|browse|resume|continue
+  <agent> dehydrate [--dry-run] [--replace] [--snapshot NAME]
+  <agent> rehydrate [--dry-run] [--snapshot NAME]
   <agent> upload <path> [--attach|--foreground] [--name NAME] [--] [message...]
   <agent> upload-book <path> [--attach|--foreground] [--name NAME] [--] [message...]
   <agent> doctor [--no-remote]
@@ -182,6 +185,18 @@ def handle_agent(config, agent, argv: list[str]) -> int:
             print(f"Started remote tmux session: {session}")
             return attach(agent, session)
         raise BridgeError(f"unknown sessions command: {sub}")
+    if cmd in {"dehydrate", "snapshot"}:
+        opts, rest = parse_lifecycle_options(args)
+        if rest:
+            raise BridgeError(f"unknown {cmd} option(s): {' '.join(rest)}")
+        print(dehydrate(agent, opts))
+        return 0
+    if cmd in {"rehydrate", "restore"}:
+        opts, rest = parse_lifecycle_options(args)
+        if rest:
+            raise BridgeError(f"unknown {cmd} option(s): {' '.join(rest)}")
+        print(rehydrate(agent, opts))
+        return 0
     if cmd in {"upload", "upload-book"}:
         kind, src, rest = split_upload_args(agent.command, cmd, args)
         foreground = False
