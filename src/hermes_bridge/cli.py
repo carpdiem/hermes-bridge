@@ -13,7 +13,7 @@ from .errors import BridgeError
 from .linking import link_agent, link_core, select_agents, unlink_agent
 from .lifecycle import dehydrate, parse_lifecycle_options, rehydrate
 from .tmux import attach, capture, create_session, format_sessions, hermes_tui_command, kill, list_sessions
-from .upload import upload
+from .upload import upload_many
 
 BASE_COMMANDS = {"hermes-bridge", "hermes-bridge.py", "__main__.py"}
 GLOBAL_COMMANDS = {"config", "link", "unlink", "install", "doctor", "--help", "-h", "help", "--version", "version"}
@@ -86,19 +86,53 @@ def split_hermes_args(argv: list[str]) -> tuple[str, list[str]]:
     return name, rest
 
 
-def split_upload_args(agent_command: str, cmd: str, args: list[str]) -> tuple[str, str, list[str]]:
+def split_upload_args(agent_command: str, cmd: str, args: list[str]) -> tuple[str, list[str], list[str]]:
     if cmd == "upload-book":
         if not args:
-            raise BridgeError(f"usage: {agent_command} upload-book <path> [options] [message...]")
-        return "book", args[0], args[1:]
+            raise BridgeError(f"usage: {agent_command} upload-book <path> [<path> ...] [options] [-- message...]")
+        return "book", args, []
 
     if not args:
-        raise BridgeError(f"usage: {agent_command} upload <path> [options] [message...]")
+        raise BridgeError(f"usage: {agent_command} upload <path> [<path> ...] [options] [-- message...]")
     if args[0] in {"file", "book"}:
         if len(args) < 2:
-            raise BridgeError(f"usage: {agent_command} upload {args[0]} <path> [options] [message...]")
-        return args[0], args[1], args[2:]
-    return "file", args[0], args[1:]
+            raise BridgeError(f"usage: {agent_command} upload {args[0]} <path> [<path> ...] [options] [-- message...]")
+        return args[0], args[1:], []
+    return "file", args, []
+
+
+def parse_upload_args(agent_command: str, cmd: str, args: list[str]) -> tuple[str, list[str], list[str], bool, bool, str | None]:
+    kind, raw_parts, _ = split_upload_args(agent_command, cmd, args)
+    foreground = False
+    attach_flag = False
+    task_name = None
+    srcs: list[str] = []
+    message_parts: list[str] = []
+    i = 0
+    while i < len(raw_parts):
+        part = raw_parts[i]
+        if part == "--foreground":
+            foreground = True
+            i += 1
+        elif part == "--attach":
+            attach_flag = True
+            i += 1
+        elif part == "--name":
+            if i + 1 >= len(raw_parts):
+                raise BridgeError("--name requires a value")
+            task_name = raw_parts[i + 1]
+            i += 2
+        elif part == "--":
+            message_parts = raw_parts[i + 1:]
+            break
+        elif part.startswith("--"):
+            raise BridgeError(f"unknown upload option: {part}")
+        else:
+            srcs.append(part)
+            i += 1
+    if not srcs:
+        raise BridgeError(f"usage: {agent_command} {cmd} <path> [<path> ...] [options] [-- message...]")
+    return kind, srcs, message_parts, foreground, attach_flag, task_name
 
 
 def handle_agent(config, agent, argv: list[str]) -> int:
@@ -198,29 +232,8 @@ def handle_agent(config, agent, argv: list[str]) -> int:
         print(rehydrate(agent, opts))
         return 0
     if cmd in {"upload", "upload-book"}:
-        kind, src, rest = split_upload_args(agent.command, cmd, args)
-        foreground = False
-        attach_flag = False
-        task_name = None
-        message_parts: list[str] = []
-        i = 0
-        while i < len(rest):
-            part = rest[i]
-            if part == "--foreground":
-                foreground = True; i += 1
-            elif part == "--attach":
-                attach_flag = True; i += 1
-            elif part == "--name":
-                if i + 1 >= len(rest):
-                    raise BridgeError("--name requires a value")
-                task_name = rest[i + 1]; i += 2
-            elif part == "--":
-                message_parts = rest[i + 1:]; break
-            elif part.startswith("--"):
-                raise BridgeError(f"unknown upload option: {part}")
-            else:
-                message_parts = rest[i:]; break
-        print(upload(config, agent, kind, src, " ".join(message_parts), foreground=foreground, attach=attach_flag, task_name=task_name))
+        kind, srcs, message_parts, foreground, attach_flag, task_name = parse_upload_args(agent.command, cmd, args)
+        print(upload_many(config, agent, kind, srcs, " ".join(message_parts), foreground=foreground, attach=attach_flag, task_name=task_name))
         return 0
     raise BridgeError(f"unknown command for {agent.command}: {cmd}")
 

@@ -199,11 +199,20 @@ Safety rules:
 ### Upload files when configured
 
 ```bash
-personal upload ~/Desktop/screenshot.png "what is this?"
-personal upload-book ~/Downloads/book.epub "extract the key ideas"
+personal upload ~/Desktop/screenshot.png -- "what is this?"
+personal upload-book ~/Downloads/book.epub -- "extract the key ideas"
 
-work upload ~/Desktop/report.pdf "summarize risks and follow-ups"
+work upload ~/Desktop/report.pdf -- "summarize risks and follow-ups"
 ```
+
+Multiple files are supported. Shell-expanded globs and explicit multi-file lists are treated as one batch: Bridge uploads each file, uploads a Markdown manifest listing every remote path, then starts a single durable manifest task.
+
+```bash
+personal upload 2026-07-03-*.jpg -- "review this photo batch"
+personal upload ~/Desktop/a.jpg ~/Desktop/b.jpg --name photo-review -- "compare these two"
+```
+
+Message text must go after `--`; all non-option arguments before `--` are interpreted as local file paths or glob patterns.
 
 ### Validate setup
 
