@@ -96,7 +96,11 @@ class TmuxTests(unittest.TestCase):
         command = remote.calls[0]["command"]
         self.assertIn("new-session -d", command)
         self.assertIn("has-session -t \"$name\"", command)
-        self.assertIn("tmux session exited immediately", command)
+        self.assertIn("deadline=$(( $(date +%s) + 8 ))", command)
+        self.assertIn("remain-on-exit on", command)
+        self.assertIn("pane_dead", command)
+        self.assertIn("capture-pane -p -S -120", command)
+        self.assertIn("tmux session command exited during startup", command)
 
     def test_default_style_options_preserve_current_palette(self):
         options = _style_options(agent())
