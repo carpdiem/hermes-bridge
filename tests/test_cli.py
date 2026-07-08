@@ -92,13 +92,13 @@ class CliTests(unittest.TestCase):
             p = Path(d) / "config.yaml"
             p.write_text(UPLOAD_CONFIG)
             out = io.StringIO()
-            with patch("hermes_bridge.cli.upload", return_value="uploaded") as fake_upload, redirect_stdout(out):
+            with patch("hermes_bridge.cli.upload_many", return_value="uploaded") as fake_upload, redirect_stdout(out):
                 code = main(["--config", str(p), "upload", "/tmp/example.txt", "--", "summarize this"], invoked_as="ops")
             self.assertEqual(code, 0)
-            _, agent, kind, src, message = fake_upload.call_args.args[:5]
+            _, agent, kind, srcs, message = fake_upload.call_args.args[:5]
             self.assertEqual(agent.command, "ops")
             self.assertEqual(kind, "file")
-            self.assertEqual(src, "/tmp/example.txt")
+            self.assertEqual(srcs, ["/tmp/example.txt"])
             self.assertEqual(message, "summarize this")
             self.assertIn("uploaded", out.getvalue())
 
@@ -106,28 +106,38 @@ class CliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.yaml"
             p.write_text(UPLOAD_CONFIG)
-            with patch("hermes_bridge.cli.upload", return_value="uploaded") as fake_upload, redirect_stdout(io.StringIO()):
+            with patch("hermes_bridge.cli.upload_many", return_value="uploaded") as fake_upload, redirect_stdout(io.StringIO()):
                 code = main(["--config", str(p), "upload", "file", "/tmp/example.txt"], invoked_as="ops")
             self.assertEqual(code, 0)
-            self.assertEqual(fake_upload.call_args.args[2:4], ("file", "/tmp/example.txt"))
+            self.assertEqual(fake_upload.call_args.args[2:4], ("file", ["/tmp/example.txt"]))
 
     def test_upload_book_alias_maps_to_book_kind(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.yaml"
             p.write_text(UPLOAD_CONFIG)
-            with patch("hermes_bridge.cli.upload", return_value="uploaded") as fake_upload, redirect_stdout(io.StringIO()):
-                code = main(["--config", str(p), "upload-book", "/tmp/book.epub", "extract ideas"], invoked_as="ops")
+            with patch("hermes_bridge.cli.upload_many", return_value="uploaded") as fake_upload, redirect_stdout(io.StringIO()):
+                code = main(["--config", str(p), "upload-book", "/tmp/book.epub", "--", "extract ideas"], invoked_as="ops")
             self.assertEqual(code, 0)
-            self.assertEqual(fake_upload.call_args.args[2:5], ("book", "/tmp/book.epub", "extract ideas"))
+            self.assertEqual(fake_upload.call_args.args[2:5], ("book", ["/tmp/book.epub"], "extract ideas"))
 
     def test_legacy_upload_book_form_still_works(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "config.yaml"
             p.write_text(UPLOAD_CONFIG)
-            with patch("hermes_bridge.cli.upload", return_value="uploaded") as fake_upload, redirect_stdout(io.StringIO()):
+            with patch("hermes_bridge.cli.upload_many", return_value="uploaded") as fake_upload, redirect_stdout(io.StringIO()):
                 code = main(["--config", str(p), "upload", "book", "/tmp/book.epub"], invoked_as="ops")
             self.assertEqual(code, 0)
-            self.assertEqual(fake_upload.call_args.args[2:4], ("book", "/tmp/book.epub"))
+            self.assertEqual(fake_upload.call_args.args[2:4], ("book", ["/tmp/book.epub"]))
+
+    def test_upload_accepts_multiple_paths_before_delimiter(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "config.yaml"
+            p.write_text(UPLOAD_CONFIG)
+            with patch("hermes_bridge.cli.upload_many", return_value="uploaded") as fake_upload, redirect_stdout(io.StringIO()):
+                code = main(["--config", str(p), "upload", "/tmp/a.jpg", "/tmp/b.jpg", "--name", "photos", "--", "review these"], invoked_as="ops")
+            self.assertEqual(code, 0)
+            self.assertEqual(fake_upload.call_args.args[2:5], ("file", ["/tmp/a.jpg", "/tmp/b.jpg"], "review these"))
+            self.assertEqual(fake_upload.call_args.kwargs["task_name"], "photos")
 
 
 if __name__ == "__main__":
