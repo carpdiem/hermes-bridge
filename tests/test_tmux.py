@@ -1,8 +1,11 @@
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
 
 from hermes_bridge.config import AgentConfig
 from hermes_bridge.errors import BridgeError
-from hermes_bridge.remote import CommandResult
+from hermes_bridge.remote import CommandResult, Remote
 from hermes_bridge.tmux import (
     attach,
     create_session,
@@ -46,6 +49,15 @@ class FakeRemote:
         return response
 
 
+class LocalRemote(Remote):
+    def run(self, command, *, tty=False, check=False, capture=True):
+        proc = subprocess.run(["bash", "-lc", command], text=True, capture_output=True)
+        result = CommandResult(proc.returncode, proc.stdout, proc.stderr)
+        if check and result.returncode != 0:
+            raise BridgeError(result.stderr or result.stdout or "failed")
+        return result
+
+
 class TmuxTests(unittest.TestCase):
     def test_sanitize(self):
         self.assertEqual(sanitize_session_piece("Support Workflow!"), "support-workflow")
@@ -71,6 +83,23 @@ class TmuxTests(unittest.TestCase):
         remote = FakeRemote([CommandResult(255, "", "ssh: Could not resolve hostname ops-host")])
         with self.assertRaisesRegex(BridgeError, "could not list remote tmux sessions.*ops-host"):
             list_sessions(agent(), remote)
+
+    def test_list_sessions_normalizes_macos_missing_socket_as_no_sessions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake_tmux = Path(tmp) / "tmux"
+            fake_tmux.write_text(
+                "#!/bin/sh\n"
+                "printf '%s\\n' 'error connecting to /private/tmp/tmux-503/default (No such file or directory)' >&2\n"
+                "exit 1\n"
+            )
+            fake_tmux.chmod(0o755)
+            configured = agent()
+            configured = AgentConfig(
+                key=configured.key,
+                raw=configured.raw,
+                defaults={**configured.defaults, "remote_tmux_cmd": str(fake_tmux)},
+            )
+            self.assertEqual(list_sessions(configured, LocalRemote(configured)), [])
 
     def test_configured_socket_path_is_used(self):
         remote = FakeRemote([CommandResult(0, "ops\t0\t100\n", "")])

@@ -51,7 +51,7 @@ def list_sessions(agent: AgentConfig, remote: Optional[Remote] = None) -> list[T
         f"set +e; out=$({tmux} list-sessions -F {shlex.quote(fmt)} 2>&1); rc=$?; set -e; "
         "if [ \"$rc\" -eq 0 ]; then printf '%s\\n' \"$out\"; "
         "else case \"$out\" in "
-        "*'no server running'*|*'failed to connect'*|*'no sessions'*) exit 0 ;; "
+        "*'no server running'*|*'failed to connect'*|*'no sessions'*|*'error connecting to '*'No such file or directory'*) exit 0 ;; "
         "*) printf '%s\\n' \"$out\" >&2; exit \"$rc\" ;; "
         "esac; fi"
     )
